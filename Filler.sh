@@ -6,15 +6,6 @@
 
 set -e
 
-echo ""
-echo "  +=============================================================+"
-echo "  |           Kindle Disk Filler Utility v2.0                  |"
-echo "  +============================================================+"
-echo "  |  Fills disk to prevent auto-updates on unregistered        |"
-echo "  |  tablets. Useful for jailbreak preparation.                |"
-echo "  +============================================================+"
-echo ""
-
 dir="fill_disk"
 mkdir -p "$dir"
 
@@ -91,6 +82,7 @@ render_progress() {
 free_space() {
     echo "[!] Start freeing space..."
     local freeMB=$(get_free_mb)
+    local percent=
     while true; do
         if [[ $freeMB -ge $minFreeMB ]]; then
             break
@@ -99,13 +91,16 @@ free_space() {
         local info=$(ls -1Ss --block-size=M "$dir"/ | tail -n 1)
         [[ -z "$info" ]] && break
         local file="${dir}"/$(echo "$info" | awk '{print $2}')
-        local size=$(echo "$info" | awk '{print $1}')
+        local size=$(echo "$info" | awk '{print $1}' | sed 's/M//g')
 
         [[ -e "${file}" ]] || die "File does not exist: '${file}'"
         rm "${file}" && files_deleted=$((files_deleted+1))
 
         freeMB=$(get_free_mb)
-        echo "[>] File ${file} (${size}) deleted, now space: ${freeMB}, target space: ${minFreeMB}"
+        percent=$((size * 100 / minFreeMB))
+        [ $percent -gt 100 ] && percent=100
+        [ $percent -lt 0 ] && percent=0
+        render_progress "${percent}" "Freeing: " "$file ($size)M| Free: ${freeMB}M"
     done
 }
 
@@ -113,8 +108,12 @@ fill_disk() {
     echo "[!] Start filling disk..."
 
     local i=$(find_next_free_index)
+    local freeMB
+    local fillableMB
+    local percent
+
     while true; do
-        local freeMB=$(get_free_mb)
+        freeMB=$(get_free_mb)
         fillableMB=$((freeMB - minFreeMB))
 
         if [ "$fillableMB" -le 0 ]; then
@@ -162,14 +161,25 @@ fill_disk() {
     done
 }
 
-echo "How much free space (in MB) do you want to leave on disk?"
-echo "It is highly recommended to leave only 20-50 MB (no more) to prevent updates."
-echo ""
-echo "  [1] 20 MB (default)"
-echo "  [2] 50 MB"
-echo "  [3] 100 MB"
-echo "  [4] Custom value"
-echo ""
+cat <<- EOF
+
+  +============================================================+
+  |           Kindle Disk Filler Utility v2.0                  |
+  +============================================================+
+  |  Fills disk to prevent auto-updates on unregistered        |
+  |  tablets. Useful for jailbreak preparation.                |
+  +============================================================+
+
+
+How much free space (in MB) do you want to leave on disk (current $totalFreeMB) MB?
+It is highly recommended to leave only 20-50 MB (no more) to prevent updates.
+
+  [1] 20 MB (default)
+  [2] 50 MB
+  [3] 100 MB
+  [4] Custom value
+
+EOF
 read -p "  Enter your choice (1-4) [1]: " choice
 
 case "$choice" in
