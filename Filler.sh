@@ -88,10 +88,11 @@ free_space() {
             break
         fi
 
-        local info=$(ls -1Ss --block-size=M "$dir"/ | tail -n 1)
+        local info=$(find "$dir" -maxdepth 1 -type f -printf '%s %p\n' | sort -n | head -n1)
         [[ -z "$info" ]] && break
-        local file="${dir}"/$(echo "$info" | awk '{print $2}')
-        local size=$(echo "$info" | awk '{print $1}' | sed 's/M//g')
+        local file=$(echo "$info" | awk '{print $2}')
+        local size=$(echo "$info" | awk '{print $1}')
+        size=$(( (size + 1048575) / 1048576 ))
 
         [[ -e "${file}" ]] || die "File does not exist: '${file}'"
         rm "${file}" && files_deleted=$((files_deleted+1))
@@ -154,7 +155,7 @@ fill_disk() {
         [ $percent -lt 0 ] && percent=0
 
         remainingLabel="${freeMB} MB"
-        [ $freeMB -ge 1024 ] && remainingLabel="$(awk "BEGIN {printf \"%.1f\", $freeMB/1024}") GB"
+        [ "$freeMB" -ge 1024 ] && remainingLabel="$(awk "BEGIN {printf \"%.1f\", $freeMB/1024}") GB"
 
         files_created=$((files_created+1))
         render_progress "$percent" "Done:     " "file_$((i-1)) | Free: $remainingLabel"
@@ -174,27 +175,27 @@ cat <<- EOF
 How much free space (in MB) do you want to leave on disk (current $totalFreeMB) MB?
 It is highly recommended to leave only 20-50 MB (no more) to prevent updates.
 
-  [1] 20 MB (default)
-  [2] 50 MB
+  [1] 20 MB
+  [2] 50 MB (default)
   [3] 100 MB
   [4] Custom value
 
 EOF
-read -p "  Enter your choice (1-4) [1]: " choice
+read -r -p "  Enter your choice (1-4) [2]: " choice
 
 case "$choice" in
-    2) minFreeMB=50 ;;
+    1) minFreeMB=20 ;;
     3) minFreeMB=100 ;;
     4)
-        read -p "  Enter the minimum free space in MB (e.g., 30): " custom
+        read -r -p "  Enter the minimum free space in MB (e.g., 30): " custom
         if [[ "$custom" =~ ^[0-9]+$ ]] && [ "$custom" -gt 0 ]; then
             minFreeMB=$custom
         else
-            echo "Invalid input. Using default (20 MB)."
-            minFreeMB=20
+            echo "Invalid input. Using default (50 MB)."
+            minFreeMB=50
         fi
         ;;
-    *) minFreeMB=20 ;;
+    *) minFreeMB=50 ;;
 esac
 
 echo ""
@@ -205,7 +206,7 @@ totalFreeMB=$(get_free_mb)
 if [[ $totalFreeMB -eq $minFreeMB ]]; then
     echo "[!] The requested free space is equal to the current free space. Nothing to do."
     echo ""
-    read -p "Press Enter to exit..." _
+    read -r -p "Press Enter to exit..." _
     exit 0
 fi
 
@@ -229,4 +230,4 @@ printf "  |  Files created: % 4d                                    |\n" $files_
 printf "  |  Target directory: %10s                           |\n" "$dir"
 printf "  +---------------------------------------------------------+"
 printf "\n"
-read -p "Press Enter to exit..." _
+read -r -p "Press Enter to exit..." _
